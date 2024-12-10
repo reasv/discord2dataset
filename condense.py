@@ -32,7 +32,7 @@ def condense_messages_by_author(input_file: str, output_file: str, assistant_aut
         condensed_message = [message]
 
     with open(output_file,'w') as f:
-        json.dump(condensed_messages, f, indent=2)
+        json.dump({"messages": condensed_messages}, f, indent=2)
 
 quote = re.compile(r"\[\d\d:\d\d\] ?([\w\d \.]+):")
 quote_broken1 = re.compile(r"\d\d:\d\d\] ?([\w\d \.]+):")
@@ -223,8 +223,6 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         formatted_message["training_detail"] = train_detail
 
     return formatted_message
-
-
 
 def condense_all(assistant_author_name: str):
     source_dir = "tmp/cleaned/"
