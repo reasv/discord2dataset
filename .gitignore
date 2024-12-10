@@ -124,3 +124,4 @@ dmypy.json
 cython_debug/
 source/*.json
 tmp/**/*.json
+train/**/*.jsonl
