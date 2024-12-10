@@ -41,7 +41,7 @@ def find_conversation_idxes(first_index: int, assistant_author: str, messages: l
     min_context = 8
     max_context = 16
     max_context_lookback_time = timedelta(hours=2)
-    max_conversation_gap = timedelta(hours=2)
+    max_conversation_gap = timedelta(hours=1)
 
     # Find the first message that is from the assistant
     start = first_index
