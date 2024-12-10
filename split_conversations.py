@@ -14,6 +14,7 @@ def split_conversations(input_file: str, output_file: str, assistant_author: str
     while next_index < len(raw_messages):
         start, end = find_conversation_idxes(next_index, assistant_author, raw_messages)
         if start is None or end is None:
+            print(f"Could not find any more conversations after index {next_index}")
             break
         conversation = raw_messages[start:end + 1]
         conversations.append(conversation)
@@ -66,7 +67,8 @@ def find_conversation_idxes(first_index: int, assistant_author: str, messages: l
     end = first_assistant_idx
     last_assistant_time = first_assistant_time
     for message in messages[first_assistant_idx:]:
-        if timedelta_from_iso(last_assistant_time, message["timestamp"]) > max_conversation_gap:
+        if timedelta_from_iso(message["timestamp"], last_assistant_time) > max_conversation_gap:
+            print(f"Conversation at [{start}:{end}] (length: {end-start}) terminated after time gap: {timedelta_from_iso(message['timestamp'], last_assistant_time)}")
             break
         else:
             if message["author"] == assistant_author:

@@ -12,6 +12,7 @@ def compile_all(assistant_author_name: str):
         os.makedirs(output_dir)
     
     output_file = os.path.join(output_dir, "dataset.jsonl")
+    total_conversations, total_messages, max_messages, min_messages = 0, 0, 0, 1000000
     for filename in os.listdir(source_dir):
         if filename.endswith(".json"):
             input_file = os.path.join(source_dir, filename)
@@ -20,7 +21,14 @@ def compile_all(assistant_author_name: str):
             conversations: list[list[dict]] = raw["conversations"]
             with jsonlines.open(output_file, "w") as writer:
                 for conversation in conversations:
-                    writer.write(format_conversation(conversation, assistant_author_name))
+                    total_conversations += 1
+                    formatted_conversation = format_conversation(conversation, assistant_author_name)
+                    total_messages += len(formatted_conversation["conversations"])
+                    max_messages = max(max_messages, len(formatted_conversation["conversations"]))
+                    min_messages = min(min_messages, len(formatted_conversation["conversations"]))
+                    writer.write(formatted_conversation)
+    
+    print(f"Compiled {total_conversations} conversations with {total_messages} messages. Max messages in a conversation: {max_messages}, Min messages in a conversation: {min_messages}. Average messages in a conversation: {total_messages / total_conversations}")
 
 def format_conversation(conversation: list[dict], assistant_author: str):
     # For each conversation, we want to replace the usernames for the non-assistant turns with randomly generated names
@@ -32,7 +40,7 @@ def format_conversation(conversation: list[dict], assistant_author: str):
     formatted_conversation = [{
         "role":"system",
         "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation as if you are {assistant_author}.",
-        "training": True
+        "training": False
     }]
     for message in conversation:
         assert isinstance(message["content"], str), "Content must be a string"
