@@ -162,13 +162,14 @@ def test_mask_content(content: str, train_detail: List[Dict[str, Union[int, bool
         # Update previous_end for the next iteration
         previous_end = end
 
-def ensure_substantial_content(
+def ensure_substantial_content( 
     content: str,
     train_detail: List[Dict[str, Union[int, bool]]]
 ) -> List[Dict[str, Union[int, bool]]]:
     """
     Ensures that the remaining content after masking is substantial.
-    If the concatenated train: true segments (after removing whitespace) 
+    Additionally removes instances of @username before assessing substantiality.
+    If the concatenated train: true segments (after removing @username and whitespace) 
     are fewer than 3 characters, mask the entire content as train: false.
 
     Args:
@@ -181,6 +182,9 @@ def ensure_substantial_content(
             Modified list of segments. Either unchanged if substantial, 
             or a single segment masking the entire content.
     """
+    # Compile a regex pattern to identify @username instances
+    at_username_pattern = re.compile(r'@[^@\s]+')
+    
     # Collect all train: true segments' text
     train_true_texts = []
     for segment in train_detail:
@@ -189,13 +193,15 @@ def ensure_substantial_content(
             end = segment['end_offset']
             # Extract substring; since end_offset is inclusive, add 1
             substring = content[begin:end + 1]
-            train_true_texts.append(substring)
+            # Remove all @username instances from the substring
+            cleaned_substring = at_username_pattern.sub('', substring)
+            train_true_texts.append(cleaned_substring)
     
-    # Concatenate all train: true segments
+    # Concatenate all cleaned train: true segments
     concatenated_text = ''.join(train_true_texts)
     
-    # Remove all whitespace characters
-    stripped_text = ''.join(concatenated_text.split())
+    # Remove all whitespace characters using regex for thoroughness
+    stripped_text = re.sub(r'\s+', '', concatenated_text)
     
     # Check if the remaining string has at least 3 characters
     if len(stripped_text) >= 3:
@@ -269,6 +275,8 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         assert isinstance(formatted_message["content"], str), "Content must be a string"
         test_mask_content(formatted_message["content"], train_detail)
         train_detail = mask_content(formatted_message["content"], train_detail)
+        test_mask_content(formatted_message["content"], train_detail)
+        train_detail = ensure_substantial_content(formatted_message["content"], train_detail)
         test_mask_content(formatted_message["content"], train_detail)
         formatted_message["training_detail"] = train_detail
 
