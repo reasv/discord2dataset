@@ -42,6 +42,7 @@ def find_conversation_idxes(first_index: int, assistant_author: str, messages: l
     max_context = 16
     max_context_lookback_time = timedelta(hours=2)
     max_conversation_gap = timedelta(hours=1)
+    max_conversation_length = 50
 
     # Find the first message that is from the assistant
     start = first_index
@@ -74,5 +75,9 @@ def find_conversation_idxes(first_index: int, assistant_author: str, messages: l
             if message["author"] == assistant_author:
                 last_assistant_time = message["timestamp"]
                 end += 1
+        # End conversation after max_conversation_length messages
+        if end - start >= max_conversation_length:
+            print(f"Conversation at [{start}:{end}] (length: {end-start}) terminated after reaching max length")
+            break
 
     return start, end
