@@ -162,6 +162,56 @@ def test_mask_content(content: str, train_detail: List[Dict[str, Union[int, bool
         # Update previous_end for the next iteration
         previous_end = end
 
+def ensure_substantial_content(
+    content: str,
+    train_detail: List[Dict[str, Union[int, bool]]]
+) -> List[Dict[str, Union[int, bool]]]:
+    """
+    Ensures that the remaining content after masking is substantial.
+    If the concatenated train: true segments (after removing whitespace) 
+    are fewer than 3 characters, mask the entire content as train: false.
+
+    Args:
+        content (str): The input chat message.
+        train_detail (List[Dict[str, Union[int, bool]]]): 
+            List of segment dictionaries with 'begin_offset', 'end_offset', and 'train' keys.
+
+    Returns:
+        List[Dict[str, Union[int, bool]]]: 
+            Modified list of segments. Either unchanged if substantial, 
+            or a single segment masking the entire content.
+    """
+    # Collect all train: true segments' text
+    train_true_texts = []
+    for segment in train_detail:
+        if segment.get('train', False):
+            begin = segment['begin_offset']
+            end = segment['end_offset']
+            # Extract substring; since end_offset is inclusive, add 1
+            substring = content[begin:end + 1]
+            train_true_texts.append(substring)
+    
+    # Concatenate all train: true segments
+    concatenated_text = ''.join(train_true_texts)
+    
+    # Remove all whitespace characters
+    stripped_text = ''.join(concatenated_text.split())
+    
+    # Check if the remaining string has at least 3 characters
+    if len(stripped_text) >= 3:
+        # Content is substantial; return train_detail unchanged
+        return train_detail
+    else:
+        # Content is unsubstantial; mask the entire message
+        if not content:
+            # Handle empty content by returning an empty list
+            return []
+        return [{
+            'begin_offset': 0,
+            'end_offset': len(content) - 1,
+            'train': False
+        }]
+
 def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool) -> Dict[str, str | bool | List[Dict[str, int | bool]]]:
     assert isinstance(messages[-1]["timestamp"], str), "Timestamp must be a string"
     assert isinstance(messages[0]["author"], str), "Author must be a string"
