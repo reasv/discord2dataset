@@ -13,7 +13,7 @@ datasets:
     field_messages: conversations
     message_field_role: role
     message_field_content: content
-    roles_to_train: []
+    roles_to_train: ["assistant"]
     train_on_eos: turn
     message_field_training: training
     message_field_training_detail: training_detail
