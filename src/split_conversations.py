@@ -17,7 +17,10 @@ def split_conversations(input_file: str, output_file: str, assistant_author: str
             print(f"Could not find any more conversations after index {next_index}")
             break
         conversation = raw_messages[start:end + 1]
-        conversations.append(conversation)
+        if conversation_has_training(conversation):
+            conversations.append(conversation)
+        else:
+            print(f"Skipping conversation at [{start}:{end}] (length: {end-start}) because it does not contain any training messages")
         next_index = end + 1
 
     with open(output_file, "w") as f:
@@ -81,3 +84,19 @@ def find_conversation_idxes(first_index: int, assistant_author: str, messages: l
             break
 
     return start, end
+
+def conversation_has_training(conversation: list[dict]):
+    """
+    Check if a conversation has any training messages.
+    A conversation has training messages if:
+    - Any message has the "training" key set to True
+    - Any message has a "training_detail" key with a list of training details, where at least one detail has the "train" key set to True
+    """
+    for message in conversation:
+        if message.get("training") == True:
+            return True
+        else:
+            for train_detail in message.get("training_detail", []):
+                if train_detail["train"] == True:
+                    return True
+    return False
