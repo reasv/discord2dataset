@@ -52,7 +52,7 @@ def clean(input_file: str, output_file: str, target_user_id: str, target_names: 
             other_user_names[author_id].add(message["author"]["nickname"])
 
         reference_message = None
-        if reference:
+        if reference and reference in id_to_idx:
             reference_message = cleaned_messages[id_to_idx[reference]]
         
         cleaned_messages.append({

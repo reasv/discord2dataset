@@ -39,9 +39,11 @@ def format_conversation(conversation: list[dict], assistant_author: str):
             author_map[author] = generate_username()
     formatted_conversation = [{
         "role":"system",
-        "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation as if you are {assistant_author}.",
+        "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation as {assistant_author}.",
         "training": False
-    }]
+    },
+    { "role": "user", "content": "<Chat History>", "training": False },
+    ]
     for message in conversation:
         assert isinstance(message["content"], str), "Content must be a string"
         # Replace every author name in the content
