@@ -4,8 +4,8 @@ tokenizer_type: AutoTokenizer # PreTrainedTokenizerFast
 # Automatically upload checkpoint and final model to HF
 # hub_model_id: username/custom_model_name
 
-load_in_8bit: true
-load_in_4bit: false
+load_in_8bit: false
+load_in_4bit: true
 strict: false
 
 datasets:
@@ -26,8 +26,8 @@ output_dir: ./outputs/qlora-llama3.1-8b
 adapter: qlora
 lora_model_dir:
 
-sequence_len: 120000
-sample_packing: false
+sequence_len: 16000
+sample_packing: true
 pad_to_sequence_len: true
 
 lora_r: 32
@@ -47,9 +47,9 @@ wandb_name:
 wandb_log_model:
 
 gradient_accumulation_steps: 4
-micro_batch_size: 8
-num_epochs: 4
-optimizer: adamw_bnb_8bit
+micro_batch_size: 2
+num_epochs: 3
+optimizer: adamw_torch
 lr_scheduler: cosine
 learning_rate: 0.0002
 
