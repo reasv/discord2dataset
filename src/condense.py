@@ -44,16 +44,14 @@ def clean_content(content: str) -> str:
     content = quote_ampm.sub(r"> ", content)
     return content
 
-
+# A regex pattern for URLs:
+# This pattern matches URLs with optional protocols, domain, and typical path/query structures.
+# It is a fairly robust URL regex that catches HTTP/HTTPS and many other common forms.
+url_pattern = re.compile(
+    r'(https?://[^\s]+)'
+)
 
 def mask_content(content: str, train_detail: List[Dict[str, Union[int, bool]]]) -> List[Dict[str, Union[int, bool]]]:
-    # A regex pattern for URLs:
-    # This pattern matches URLs with optional protocols, domain, and typical path/query structures.
-    # It is a fairly robust URL regex that catches HTTP/HTTPS and many other common forms.
-    url_pattern = re.compile(
-        r'(https?://[^\s]+)'
-    )
-
     result = []
 
     for segment in train_detail:
@@ -207,6 +205,8 @@ def ensure_substantial_content(
     if len(stripped_text) >= 3:
         # Content is substantial; return train_detail unchanged
         return train_detail
+    elif "ok" in stripped_text: # If the remaining text is just "ok", we consider it substantial
+        return train_detail
     else:
         # Content is unsubstantial; mask the entire message
         if not content:
@@ -217,6 +217,150 @@ def ensure_substantial_content(
             'end_offset': len(content) - 1,
             'train': False
         }]
+    
+def consolidate_train_detail(
+    train_detail: List[Dict[str, Union[int, bool]]]
+) -> List[Dict[str, Union[int, bool]]]:
+    """
+    Consolidates consecutive train_detail segments that have the same 'train' value.
+
+    Args:
+        train_detail (List[Dict[str, Union[int, bool]]]): 
+            A list of dictionaries, each containing:
+                - 'begin_offset' (int): The starting index of the segment (inclusive).
+                - 'end_offset' (int): The ending index of the segment (inclusive).
+                - 'train' (bool): Indicates whether the segment is for training (True) or not (False).
+
+    Returns:
+        List[Dict[str, Union[int, bool]]]: 
+            A new list where consecutive segments with the same 'train' value are consolidated.
+    
+    Example:
+        Input:
+            [
+                {'begin_offset': 0, 'end_offset': 5, 'train': True},
+                {'begin_offset': 6, 'end_offset': 10, 'train': True},
+                {'begin_offset': 11, 'end_offset': 15, 'train': False},
+                {'begin_offset': 16, 'end_offset': 20, 'train': False},
+                {'begin_offset': 21, 'end_offset': 25, 'train': True},
+            ]
+        Output:
+            [
+                {'begin_offset': 0, 'end_offset': 10, 'train': True},
+                {'begin_offset': 11, 'end_offset': 20, 'train': False},
+                {'begin_offset': 21, 'end_offset': 25, 'train': True},
+            ]
+    """
+    if not train_detail:
+        return []
+
+    # Initialize the consolidated list with the first segment
+    consolidated = [train_detail[0].copy()]
+
+    for segment in train_detail[1:]:
+        last_consolidated = consolidated[-1]
+        
+        if segment['train'] == last_consolidated['train']:
+            # Merge segments by updating the end_offset
+            last_consolidated['end_offset'] = segment['end_offset']
+        else:
+            # Append a new segment as the train status differs
+            consolidated.append(segment.copy())
+
+    return consolidated
+
+def eliminate_one_char_details(
+    train_detail: List[Dict[str, Union[int, bool]]]
+) -> List[Dict[str, Union[int, bool]]]:
+    """
+    Eliminates one-character segments in the train_detail list by merging them with
+    the previous or next segment, inheriting the 'train' value from the merged segment.
+    
+    Args:
+        train_detail (List[Dict[str, Union[int, bool]]]): 
+            A list of dictionaries, each containing:
+                - 'begin_offset' (int): The starting index of the segment (inclusive).
+                - 'end_offset' (int): The ending index of the segment (inclusive).
+                - 'train' (bool): Indicates whether the segment is for training (True) or not (False).
+    
+    Returns:
+        List[Dict[str, Union[int, bool]]]: 
+            A new list where single-character segments have been merged with adjacent segments.
+    
+    Example:
+        Input:
+            [
+                {'begin_offset': 0, 'end_offset': 5, 'train': True},
+                {'begin_offset': 6, 'end_offset': 6, 'train': False},
+                {'begin_offset': 7, 'end_offset': 10, 'train': True},
+                {'begin_offset': 11, 'end_offset': 11, 'train': True},
+                {'begin_offset': 12, 'end_offset': 15, 'train': False},
+            ]
+        Output:
+            [
+                {'begin_offset': 0, 'end_offset': 5, 'train': True},
+                {'begin_offset': 6, 'end_offset': 6, 'train': False},
+                {'begin_offset': 7, 'end_offset': 11, 'train': True},
+                {'begin_offset': 12, 'end_offset': 15, 'train': False},
+            ]
+    """
+    if not train_detail:
+        return []
+
+    consolidated = []
+    i = 0
+    n = len(train_detail)
+    
+    while i < n:
+        current = train_detail[i]
+        begin = current['begin_offset']
+        end = current['end_offset']
+        
+        if begin == end:
+            # Single-character segment
+            if i > 0:
+                # Merge with previous segment
+                if not consolidated:
+                    # Edge case: no previous segment in consolidated
+                    # Merge with next if possible
+                    if i +1 < n:
+                        next_segment = train_detail[i +1]
+                        merged_segment = {
+                            'begin_offset': begin,
+                            'end_offset': next_segment['end_offset'],
+                            'train': next_segment['train']
+                        }
+                        consolidated.append(merged_segment)
+                        i +=2  # Skip next segment as it's merged
+                        continue
+                    else:
+                        # Only one single-character segment
+                        consolidated.append(current.copy())
+                else:
+                    # Merge with the last segment in consolidated
+                    consolidated[-1]['end_offset'] +=1
+            elif i +1 < n:
+                # Merge with next segment
+                next_segment = train_detail[i +1]
+                merged_segment = {
+                    'begin_offset': begin,
+                    'end_offset': next_segment['end_offset'],
+                    'train': next_segment['train']
+                }
+                consolidated.append(merged_segment)
+                i +=2  # Skip next segment as it's merged
+                continue
+            else:
+                # Only one single-character segment
+                consolidated.append(current.copy())
+        else:
+            # Multi-character segment
+            consolidated.append(current.copy())
+        
+        i +=1
+    
+    return consolidated
+
 
 def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool) -> Dict[str, str | bool | List[Dict[str, int | bool]]]:
     assert isinstance(messages[-1]["timestamp"], str), "Timestamp must be a string"
@@ -276,6 +420,20 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         test_mask_content(formatted_message["content"], train_detail)
         train_detail = mask_content(formatted_message["content"], train_detail)
         test_mask_content(formatted_message["content"], train_detail)
+        train_detail = ensure_substantial_content(formatted_message["content"], train_detail)
+        test_mask_content(formatted_message["content"], train_detail)
+        train_detail = consolidate_train_detail(train_detail)
+        test_mask_content(formatted_message["content"], train_detail)
+        # We merge one-character segments to the previous or next segment
+        # only after merging consecutive segments with the same 'train' value
+        # that way, single-character segments that were next to segments with the same
+        # 'train' value were already merged with them
+        train_detail = eliminate_one_char_details(train_detail)
+        test_mask_content(formatted_message["content"], train_detail)
+        # We consolidate the train_detail segments again after merging one-character segments
+        train_detail = consolidate_train_detail(train_detail)
+        test_mask_content(formatted_message["content"], train_detail)
+        # Finally, we ensure that the remaining content is substantial
         train_detail = ensure_substantial_content(formatted_message["content"], train_detail)
         test_mask_content(formatted_message["content"], train_detail)
         formatted_message["training_detail"] = train_detail

@@ -7,7 +7,7 @@ load_in_4bit: true
 strict: false
 
 datasets:
-  - path: ./dataset.jsonl
+  - path: ./train/dataset.jsonl
     type: chat_template
     chat_template: tokenizer_default
     field_messages: conversations
@@ -24,7 +24,7 @@ output_dir: ./outputs/qlora-llama3.1-8b
 adapter: qlora
 lora_model_dir:
 
-sequence_len: 5000
+sequence_len: 40000
 sample_packing: false
 pad_to_sequence_len: true
 
