@@ -13,13 +13,13 @@ def compile_all(assistant_author_name: str):
     
     output_file = os.path.join(output_dir, "dataset.jsonl")
     total_conversations, total_messages, max_messages, min_messages = 0, 0, 0, 1000000
-    for filename in os.listdir(source_dir):
-        if filename.endswith(".json"):
-            input_file = os.path.join(source_dir, filename)
-            with open(input_file, "rb") as f:
-                raw = json.load(f)
-            conversations: list[list[dict]] = raw["conversations"]
-            with jsonlines.open(output_file, "w") as writer:
+    with jsonlines.open(output_file, "w") as writer:
+        for filename in os.listdir(source_dir):
+            if filename.endswith(".json"):
+                input_file = os.path.join(source_dir, filename)
+                with open(input_file, "rb") as f:
+                    raw = json.load(f)
+                conversations: list[list[dict]] = raw["conversations"]
                 for conversation in conversations:
                     total_conversations += 1
                     formatted_conversation = format_conversation(conversation, assistant_author_name)
