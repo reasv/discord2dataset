@@ -393,7 +393,7 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         if len(message["attachments"]) > 0:
             attachments = ("\n" + " ".join([a["filename"] for a in message["attachments"]])) if len(message["attachments"]) > 0 else ""
             attachments_start_idx = len(formatted_message["content"])
-            formatted_message["content"] += attachments
+            formatted_message["content"] += attachments + "\n"
             attachments_end_idx = len(formatted_message["content"]) - 1
             train_detail.append({"begin_offset": attachments_start_idx, "end_offset": attachments_end_idx, "train": False})
         
@@ -409,7 +409,7 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
                 formatted_embeds += f"\n{embed['url']}\n{embed['title']}\n{embed['description']}"
             if len(formatted_embeds) > 0:
                 embeds_start_idx = len(formatted_message["content"])
-                formatted_message["content"] += formatted_embeds
+                formatted_message["content"] += formatted_embeds + "\n"
                 embeds_end_idx = len(formatted_message["content"]) - 1
                 train_detail.append({"begin_offset": embeds_start_idx, "end_offset": embeds_end_idx, "train": False})
 
