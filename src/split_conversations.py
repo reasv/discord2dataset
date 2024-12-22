@@ -18,7 +18,11 @@ def split_conversations(input_file: str, output_file: str, assistant_author: str
             break
         conversation = raw_messages[start:end + 1]
         if conversation_has_training(conversation):
-            conversations.append(conversation)
+            convo_no_tail = remove_conversation_tail(conversation)
+            if len(convo_no_tail) < len(conversation):
+                print(f"Removed tail of conversation at [{start}:{end}] (length: {end-start} new length: {len(convo_no_tail)}) to remove non-training messages (removed: {len(conversation) - len(convo_no_tail)})")
+            assert len(convo_no_tail) > 0, f"Conversation at [{start}:{end}] (length: {end-start}) has no training messages"
+            conversations.append(convo_no_tail)
         else:
             print(f"Skipping conversation at [{start}:{end}] (length: {end-start}) because it does not contain any training messages")
         next_index = end + 1
@@ -100,3 +104,20 @@ def conversation_has_training(conversation: list[dict]):
                 if train_detail["train"] == True:
                     return True
     return False
+
+def remove_conversation_tail(conversation: list[dict]):
+    """
+    Remove the tail of a conversation that is not relevant for training.
+    The tail is defined as the last messages in the conversation that
+    do not have the "training" key set to True or a "training_detail" key
+    with a list of training details, where at least one detail has the "train" key set to True.
+    """
+    for idx, message in enumerate(reversed(conversation)):
+        if message.get("training") == True:
+            # If idx is 0, return the full conversation
+            return conversation[:-idx] if idx != 0 else conversation
+        else:
+            for train_detail in message.get("training_detail", []):
+                if train_detail.get("train") == True:
+                    return conversation[:-idx] if idx != 0 else conversation
+    return conversation
