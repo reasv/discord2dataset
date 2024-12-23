@@ -39,7 +39,7 @@ def format_conversation(conversation: list[dict], assistant_author: str):
             author_map[author] = generate_username()
     formatted_conversation = [{
         "role":"system",
-        "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation as {assistant_author}.",
+        "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation as {assistant_author}. Never write messages for other users, only for {assistant_author}. Write a single chat message at a time. Always stay in character.",
         "training": False
     },
     { "role": "user", "content": "<Chat History>", "training": False },
