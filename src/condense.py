@@ -367,7 +367,7 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
     assert isinstance(messages[0]["author"], str), "Author must be a string"
     formatted_message: Dict[str, str | bool | List[Dict[str, int | bool]]] = {
         "role": "assistant" if is_assistant else "human",
-        "content": "" if is_assistant else f"{messages[0]['author']}: ",
+        "content": f"{messages[0]['author']}: ",
         "timestamp": messages[-1]["timestamp"],
         "author": messages[0]["author"]
     }
