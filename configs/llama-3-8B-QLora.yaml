@@ -19,6 +19,7 @@ datasets:
     train_on_eos: turn
     message_field_training: training
     message_field_training_detail: training_detail
+
 dataset_prepared_path: last_run_prepared
 val_set_size: 0.05
 output_dir: ./outputs/qlora-llama3.1-8b

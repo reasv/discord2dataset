@@ -1,4 +1,5 @@
-base_model: unsloth/Llama-3.3-70B-Instruct
+#base_model: unsloth/Llama-3.3-70B-Instruct
+base_model: NaniDAO/Llama-3.3-70B-Instruct-ablated
 model_type: LlamaForCausalLM
 tokenizer_type: AutoTokenizer # PreTrainedTokenizerFast
 
