@@ -25,7 +25,7 @@ adapter: qlora
 lora_model_dir:
 
 dataset_processes: 8
-sequence_len: 50000
+sequence_len: 8000
 sample_packing: false
 pad_to_sequence_len: true
 
