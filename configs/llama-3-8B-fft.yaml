@@ -21,6 +21,7 @@ dataset_prepared_path: last_run_prepared
 val_set_size: 0.05
 output_dir: ./outputs/fft-llama3.1-8b
 
+dataset_processes: 8
 sequence_len: 120000
 sample_packing: false
 pad_to_sequence_len: true

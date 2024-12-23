@@ -24,6 +24,7 @@ output_dir: ./outputs/qlora-llama3.3-70B
 adapter: qlora
 lora_model_dir:
 
+dataset_processes: 8
 sequence_len: 50000
 sample_packing: false
 pad_to_sequence_len: true
