@@ -384,7 +384,7 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
     }
     assert isinstance(formatted_message["content"], str), "Content is not a string"
     train_detail = [
-        {"begin_offset": 0, "end_offset": len(formatted_message["content"]) - 1, "train": False}
+        {"begin_offset": 0, "end_offset": len(formatted_message["content"]) - 1, "train": True}
     ]
     for message in messages:
         assert isinstance(message["content"], str), "Content must be a string"
