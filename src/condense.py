@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Union
 from dateutil import parser
 from datetime import timedelta
+import unittest
 
 def timedelta_from_iso(t1: str, t2: str):
     if t1 == None or t2 == None:
@@ -160,8 +161,12 @@ def test_mask_content(content: str, train_detail: List[Dict[str, Union[int, bool
         # Update previous_end for the next iteration
         previous_end = end
 
+# Compile a regex pattern to identify @username instances
+at_username_pattern = re.compile(r'@[^@\s]+')
+
 def ensure_substantial_content( 
     content: str,
+    prefix_text: str,
     train_detail: List[Dict[str, Union[int, bool]]]
 ) -> List[Dict[str, Union[int, bool]]]:
     """
@@ -172,6 +177,7 @@ def ensure_substantial_content(
 
     Args:
         content (str): The input chat message.
+        prefix_text (str): The prefix text to remove from consideration.
         train_detail (List[Dict[str, Union[int, bool]]]): 
             List of segment dictionaries with 'begin_offset', 'end_offset', and 'train' keys.
 
@@ -180,9 +186,6 @@ def ensure_substantial_content(
             Modified list of segments. Either unchanged if substantial, 
             or a single segment masking the entire content.
     """
-    # Compile a regex pattern to identify @username instances
-    at_username_pattern = re.compile(r'@[^@\s]+')
-    
     # Collect all train: true segments' text
     train_true_texts = []
     for segment in train_detail:
@@ -194,18 +197,25 @@ def ensure_substantial_content(
             # Remove all @username instances from the substring
             cleaned_substring = at_username_pattern.sub('', substring)
             train_true_texts.append(cleaned_substring)
+
     
     # Concatenate all cleaned train: true segments
     concatenated_text = ''.join(train_true_texts)
-    
+    # Remove the prefix text from the beginning of the concatenated text
+    if prefix_text and concatenated_text.startswith(prefix_text):
+        concatenated_text = concatenated_text[len(prefix_text):]
     # Remove all whitespace characters using regex for thoroughness
     stripped_text = re.sub(r'\s+', '', concatenated_text)
-    
+    # Convert to lowercase for case-insensitive matching
+    stripped_text = stripped_text.lower()
+
+    # print("\n", content, train_true_texts, stripped_text)
     # Check if the remaining string has at least 3 characters
     if len(stripped_text) >= 3:
         # Content is substantial; return train_detail unchanged
         return train_detail
-    elif "ok" in stripped_text: # If the remaining text is just "ok", we consider it substantial
+    # If the remaining text is "ok", "hi", "no" we consider it substantial
+    elif stripped_text in ["ok", "hi", "no"]:
         return train_detail
     else:
         # Content is unsubstantial; mask the entire message
@@ -365,14 +375,17 @@ def eliminate_one_char_details(
 def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool) -> Dict[str, str | bool | List[Dict[str, int | bool]]]:
     assert isinstance(messages[-1]["timestamp"], str), "Timestamp must be a string"
     assert isinstance(messages[0]["author"], str), "Author must be a string"
+    content_prefix = f"{messages[0]['author']}: "
     formatted_message: Dict[str, str | bool | List[Dict[str, int | bool]]] = {
         "role": "assistant" if is_assistant else "human",
-        "content": f"{messages[0]['author']}: ",
+        "content": content_prefix,
         "timestamp": messages[-1]["timestamp"],
         "author": messages[0]["author"]
     }
-    train_detail = []
-
+    assert isinstance(formatted_message["content"], str), "Content is not a string"
+    train_detail = [
+        {"begin_offset": 0, "end_offset": len(formatted_message["content"]) - 1, "train": False}
+    ]
     for message in messages:
         assert isinstance(message["content"], str), "Content must be a string"
         assert isinstance(formatted_message["content"], str), "Content must be a string"
@@ -417,10 +430,11 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         formatted_message["training"] = False
     else:
         assert isinstance(formatted_message["content"], str), "Content must be a string"
+
         test_mask_content(formatted_message["content"], train_detail)
         train_detail = mask_content(formatted_message["content"], train_detail)
         test_mask_content(formatted_message["content"], train_detail)
-        train_detail = ensure_substantial_content(formatted_message["content"], train_detail)
+        train_detail = ensure_substantial_content(formatted_message["content"], content_prefix, train_detail)
         test_mask_content(formatted_message["content"], train_detail)
         train_detail = consolidate_train_detail(train_detail)
         test_mask_content(formatted_message["content"], train_detail)
@@ -434,7 +448,7 @@ def condense_format_messages(messages: list[Dict[str, Any]], is_assistant: bool)
         train_detail = consolidate_train_detail(train_detail)
         test_mask_content(formatted_message["content"], train_detail)
         # Finally, we ensure that the remaining content is substantial
-        train_detail = ensure_substantial_content(formatted_message["content"], train_detail)
+        train_detail = ensure_substantial_content(formatted_message["content"], content_prefix, train_detail)
         test_mask_content(formatted_message["content"], train_detail)
         formatted_message["training_detail"] = train_detail
 
@@ -452,3 +466,244 @@ def condense_all(assistant_author_name: str):
             input_file = os.path.join(source_dir, filename)
             output_file = os.path.join(output_dir, filename)
             condense_messages_by_author(input_file, output_file, assistant_author_name)
+
+
+class TestEnsureSubstantialContent(unittest.TestCase):
+    def test_substantial_content(self):
+        """
+        Test case where the content after masking is substantial (>=3 characters).
+        """
+        content = "This is a test message."
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 22, 'train': True}
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_unsubstantial_content(self):
+        """
+        Test case where the content after masking is unsubstantial (<3 characters).
+        """
+        content = "uh @user!"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 8, 'train': True}
+        ]
+        expected = [{
+            'begin_offset': 0,
+            'end_offset': 8,
+            'train': False
+        }]
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_unsubstantial_content_with_hi(self):
+        """
+        Test case where the remaining text after masking is 'hi', which is considered substantial.
+        """
+        content = "Hi @user!"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 8, 'train': True}
+        ]
+        expected = [{
+            'begin_offset': 0,
+            'end_offset': 8,
+            'train': True
+        }]
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_unsubstantial_content_with_ok(self):
+        """
+        Test case where the remaining text after masking is 'ok', which is considered substantial.
+        """
+        content = "Ok @user"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 7, 'train': True}
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_multiple_usernames(self):
+        """
+        Test case with multiple @username instances in the train: True segments.
+        """
+        content = "@alice Hi there @bob!"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 20, 'train': True}
+        ]
+        # After removing @alice and @bob, " Hi there !" remains
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_empty_content(self):
+        """
+        Test case with empty content.
+        """
+        content = ""
+        prefix_text = ""
+        train_detail = []
+        expected = []
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_prefix_removal(self):
+        """
+        Test case where prefix_text needs to be removed from the concatenated text.
+        """
+        content = "Prefix Text actual content."
+        prefix_text = "Prefix Text"
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 26, 'train': True}
+        ]
+        # After removing prefix, " actual content." remains
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_no_train_true_segments(self):
+        """
+        Test case where no segments have 'train': True.
+        The function should mask the entire content as 'train': False.
+        """
+        content = "This content has no training."
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 28, 'train': False}
+        ]
+        expected = [{
+            'begin_offset': 0,
+            'end_offset': 28,
+            'train': False
+        }]
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_mixed_train_segments(self):
+        """
+        Test case with mixed 'train': True and 'train': False segments.
+        Only 'train': True segments are considered for substantiality.
+        """
+        content = "Hello @user, how are you?"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 5, 'train': False},  # "Hello"
+            {'begin_offset': 6, 'end_offset': 11, 'train': True},  # "@user"
+            {'begin_offset': 13, 'end_offset': 24, 'train': True}  # "how are you"
+        ]
+        # After removing @user: "Hello , how are you"
+        # Concatenated train: True segments: "@userhow are you"
+        # After removing @user: "how are you"
+        # After removing prefix (none), and whitespace: "howareyou" (length > 3)
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_with_ok_case_insensitive(self):
+        """
+        Test case where 'ok' is present in different cases.
+        """
+        content = "OK @user"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 7, 'train': True}
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_exactly_three_characters(self):
+        """
+        Test case where the remaining text after masking is exactly 3 characters.
+        """
+        content = "abc @user"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 8, 'train': True}  # "abc"
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_less_than_three_characters_with_ok(self):
+        """
+        Test case where the remaining text is less than 3 characters but contains 'ok'.
+        """
+        content = "ok @user"
+        prefix_text = ""
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 7, 'train': True}  # "ok"
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_no_train_segments(self):
+        """
+        Test case where train_detail is empty.
+        """
+        content = "Any content here."
+        prefix_text = ""
+        train_detail = []
+        expected = [{'begin_offset': 0, 'end_offset': 16, 'train': False}]
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_with_prefix_and_substantial(self):
+        """
+        Test case where content has a prefix that needs to be removed and the remaining is substantial.
+        """
+        content = "PREFIX actual substantial content."
+        prefix_text = "PREFIX"
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 33, 'train': True}  # "PREFIX actual substantial content."
+        ]
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_with_prefix_and_unsubstantial(self):
+        """
+        Test case where content has a prefix and the remaining text after removal is unsubstantial.
+        """
+        content = "PREFIX @user ok"
+        prefix_text = "PREFIX"
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 14, 'train': True}  # "PREFIX @user ok"
+        ]
+        # After removing prefix: " @user ok"
+        # Removing @user: " ok"
+        # Stripped: "ok" which is substantial
+        expected = train_detail.copy()
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+    def test_content_with_prefix_and_unsubstantial_no_ok(self):
+        """
+        Test case where content has a prefix and the remaining text after removal is unsubstantial without 'ok'.
+        """
+        content = "PREFIX uh @user"
+        prefix_text = "PREFIX"
+        train_detail = [
+            {'begin_offset': 0, 'end_offset': 14, 'train': True}  # "PREFIX hi @user"
+        ]
+        # After removing prefix: " hi @user"
+        # Removing @user: " hi "
+        # Stripped: "hi" (length 2)
+        expected = [{
+            'begin_offset': 0,
+            'end_offset': 14,
+            'train': False
+        }]
+        result = ensure_substantial_content(content, prefix_text, train_detail)
+        self.assertEqual(result, expected)
+
+if __name__ == "__main__":
+    unittest.main(argv=[''], exit=False)
