@@ -1,3 +1,4 @@
+from importlib.metadata import distribution
 import json
 import os
 from typing import Dict
@@ -13,6 +14,7 @@ def compile_all(assistant_author_name: str):
     
     output_file = os.path.join(output_dir, "dataset.jsonl")
     total_conversations, total_messages, max_messages, min_messages = 0, 0, 0, 1000000
+    conversation_size_distribution: Dict[int, int] = {}
     with jsonlines.open(output_file, "w") as writer:
         for filename in os.listdir(source_dir):
             if filename.endswith(".json"):
@@ -26,10 +28,16 @@ def compile_all(assistant_author_name: str):
                     total_messages += len(formatted_conversation["conversations"])
                     max_messages = max(max_messages, len(formatted_conversation["conversations"]))
                     min_messages = min(min_messages, len(formatted_conversation["conversations"]))
+                    if len(formatted_conversation["conversations"]) not in conversation_size_distribution:
+                        conversation_size_distribution[len(formatted_conversation["conversations"])] = 0
+
+                    conversation_size_distribution[len(formatted_conversation["conversations"])] += 1
                     writer.write(formatted_conversation)
     
     print(f"Compiled {total_conversations} conversations with {total_messages} messages. Max messages in a conversation: {max_messages}, Min messages in a conversation: {min_messages}. Average messages in a conversation: {total_messages / total_conversations}")
-
+    print("Conversation size distribution:")
+    distribution = sorted(conversation_size_distribution.items(), key=lambda x: x[0])
+    print(", ".join([f"{size}: {count}" for size, count in distribution]))
 def format_conversation(conversation: list[dict], assistant_author: str):
     # For each conversation, we want to replace the usernames for the non-assistant turns with randomly generated names
     author_map: Dict[str, str] = {}
@@ -42,7 +50,7 @@ def format_conversation(conversation: list[dict], assistant_author: str):
         "content": f"This is a conversation between multiple users in an online chat. You are {assistant_author}. Reply to the conversation roleplaying as {assistant_author}. Never write messages for other users, only for {assistant_author}. Write a single chat message at a time. Always stay in character.",
         "training": False
     },
-    { "role": "user", "content": "<Chat History>", "training": False },
+    { "role": "human", "content": "<Chat History>", "training": False },
     ]
     for message in conversation:
         assert isinstance(message["content"], str), "Content must be a string"
