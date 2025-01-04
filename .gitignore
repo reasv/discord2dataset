@@ -126,3 +126,4 @@ source/*.json
 tmp/**/*.json
 train/**/*.jsonl
 last_run_prepared/
+scripts/
